@@ -18,9 +18,7 @@ import {
   Sparkles, 
   Sliders, 
   ArrowRight,
-  HelpCircle,
-  TrendingUp,
-  CpuIcon
+  TrendingUp
 } from 'lucide-react';
 
 export default function App() {
@@ -32,13 +30,243 @@ export default function App() {
   const [selectedPod, setSelectedPod] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [activeDeployment, setActiveDeployment] = useState('campus'); // 'campus' or 'town'
+  const [isUsingClientFallback, setIsUsingClientFallback] = useState(false);
   const terminalEndRef = useRef(null);
 
   const BACKEND_URL = 'http://localhost:5000/api';
 
+  // Client-Side Simulation Telemetry Fallback (For static hosting environments like Vercel)
+  const runClientSideSimulationTick = (currentMode) => {
+    // Mimics the telemetry updates inside React if the backend is offline
+    const totalCpu = currentMode === 'BURSTY_WORKLOAD' ? 88 : currentMode === 'PVC_STORAGE_STRESS' ? 62 : currentMode === 'MEMORY_LEAK' ? 48 : 22;
+    const totalMem = currentMode === 'MEMORY_LEAK' ? 78 : 45;
+    const latency = currentMode === 'PVC_STORAGE_STRESS' ? 38.4 : 1.8;
+    const writeIops = currentMode === 'PVC_STORAGE_STRESS' ? 380 : currentMode === 'BURSTY_WORKLOAD' ? 240 : 40;
+
+    const mockState = {
+      environment: activeDeployment === 'campus' ? 'Smart Campus Grid' : 'Smart Town Grid',
+      nodeStatus: {
+        hostname: 'edge-gateway-01.abb-town.internal',
+        os: 'Ubuntu 22.04 LTS (K3s v1.28.2+k3s1 - Vercel Sandbox Mode)',
+        cpuUsage: totalCpu,
+        memoryUsage: totalMem,
+        diskUsage: 38,
+        networkIn: currentMode === 'BURSTY_WORKLOAD' ? 680 : 120,
+        networkOut: currentMode === 'BURSTY_WORKLOAD' ? 490 : 98,
+        pvcReadIops: currentMode === 'PVC_STORAGE_STRESS' ? 180 : 250,
+        pvcWriteIops: writeIops,
+        pvcLatencyMs: latency
+      },
+      namespaces: {
+        'smart-campus-core': {
+          pods: [
+            {
+              name: 'campus-api-gateway',
+              status: 'Running',
+              restarts: 0,
+              cpu: currentMode === 'MULTI_SERVICE_DEPENDENCY' ? 72 : 15,
+              memory: 120,
+              network: { in: 80, out: 90 },
+              pvc: { read: 5, write: 2, latency: 1.5 },
+              logs: ['Routing external traffic to services', 'Health check OK'],
+              dependency: ['auth-service', 'grid-database-0']
+            },
+            {
+              name: 'student-portal-frontend',
+              status: 'Running',
+              restarts: 0,
+              cpu: 5,
+              memory: 95,
+              network: { in: 15, out: 4 },
+              pvc: { read: 0, write: 0, latency: 0.0 },
+              logs: ['React static files served', 'Session verified'],
+              dependency: ['campus-api-gateway']
+            },
+            {
+              name: 'auth-service',
+              status: 'Running',
+              restarts: 0,
+              cpu: currentMode === 'MULTI_SERVICE_DEPENDENCY' ? 95 : 8,
+              memory: 150,
+              network: { in: 25, out: 25 },
+              pvc: { read: 12, write: 5, latency: 1.8 },
+              logs: ['OAuth2 Provider Ready', 'Token validator running'],
+              dependency: []
+            }
+          ]
+        },
+        'iot-smart-grid': {
+          pods: [
+            {
+              name: 'smart-meters-ingestion',
+              status: 'Running',
+              restarts: 0,
+              cpu: currentMode === 'BURSTY_WORKLOAD' ? 88 : 28,
+              memory: 180,
+              network: { in: currentMode === 'BURSTY_WORKLOAD' ? 650 : 240, out: 190 },
+              pvc: { read: 10, write: 45, latency: 2.4 },
+              logs: currentMode === 'BURSTY_WORKLOAD' 
+                ? ['⚠️ WARNING: High influx of bursty IoT electric telemetry updates.', 'Processing 2500 pkg/sec.']
+                : ['Listening on UDP 5090 for telemetry streams', 'Processing 450 meters/sec'],
+              dependency: ['grid-database-0']
+            },
+            {
+              name: 'grid-database-0',
+              status: 'Running',
+              restarts: 0,
+              cpu: currentMode === 'PVC_STORAGE_STRESS' ? 48 : 32,
+              memory: 340,
+              network: { in: 180, out: 75 },
+              pvc: { read: 80, write: writeIops, latency: latency },
+              logs: currentMode === 'PVC_STORAGE_STRESS'
+                ? ['🚨 CRITICAL: PVC storage write wait-queue full.', 'I/O wait time exceeded 35ms!']
+                : ['Postgres engine listening', 'Autovacuum complete'],
+              dependency: []
+            },
+            {
+              name: 'grid-analytics-worker',
+              status: currentMode === 'MEMORY_LEAK' ? 'Running' : 'Running',
+              restarts: currentMode === 'MEMORY_LEAK' ? Math.floor(Date.now() / 30000) % 5 : 0,
+              cpu: 18,
+              memory: currentMode === 'MEMORY_LEAK' ? 480 : 210,
+              network: { in: 35, out: 12 },
+              pvc: { read: 55, write: 5, latency: 2.0 },
+              logs: currentMode === 'MEMORY_LEAK'
+                ? ['⚠️ WARNING: Cache allocation growth. Free Heap: < 12MB', '🚨 Eviction threshold critical.']
+                : ['Loaded ML load-forecasting model v2.1', 'Computing trends'],
+              dependency: ['grid-database-0']
+            }
+          ]
+        },
+        'water-management': {
+          pods: [
+            {
+              name: 'pump-controller',
+              status: currentMode === 'PVC_STORAGE_STRESS' ? 'Error' : 'Running',
+              restarts: currentMode === 'PVC_STORAGE_STRESS' ? Math.floor(Date.now() / 10000) % 8 + 1 : 0,
+              cpu: currentMode === 'PVC_STORAGE_STRESS' ? 1 : 12,
+              memory: 85,
+              network: { in: 8, out: 12 },
+              pvc: { read: 2, write: 8, latency: currentMode === 'PVC_STORAGE_STRESS' ? 25 : 1.9 },
+              logs: currentMode === 'PVC_STORAGE_STRESS'
+                ? ['🚨 CRITICAL: Failed writing pressure log to grid-database-0.', 'Connection timed out. Rebooting.']
+                : ['Pressure valve telemetry synced', 'Holding state at 4.2 bar'],
+              dependency: ['campus-api-gateway', 'grid-database-0']
+            },
+            {
+              name: 'leak-detection-agent',
+              status: 'Running',
+              restarts: 0,
+              cpu: 10,
+              memory: 98,
+              network: { in: 12, out: 8 },
+              pvc: { read: 8, write: 1, latency: 1.2 },
+              logs: ['Acoustic sensor analytics pipeline open', 'No water deviations'],
+              dependency: ['campus-api-gateway']
+            }
+          ]
+        }
+      }
+    };
+
+    setClusterData(mockState);
+
+    // AI narrative fallbacks
+    let correlation = {
+      detected: false,
+      confidence: 0,
+      title: 'Healthy Grid Cluster Telemetry',
+      severity: 'LOW',
+      primaryCulprit: null,
+      implicatedMetrics: [],
+      causalityChain: '',
+      remediationSteps: [],
+      explanation: 'No anomalous activity detected. KubePulse AI neural models indicate standard operations.'
+    };
+
+    if (currentMode === 'BURSTY_WORKLOAD') {
+      correlation = {
+        detected: true,
+        confidence: 94,
+        title: 'Bursty Electricity Ingestion Influx Spiking CPU',
+        severity: 'MEDIUM',
+        primaryCulprit: 'smart-meters-ingestion',
+        implicatedMetrics: ['CPU Usage', 'Network Ingress', 'PVC Writes'],
+        causalityChain: 'High Smart Meter upload spikes -> Network Ingestion queues saturated -> Heavy DB writes on PostgreSQL',
+        remediationSteps: [
+          'Autoscale replica size of smart-meters-ingestion pod to 3 instances.',
+          'Apply high-priority scheduler class (PriorityClass) to avoid eviction.',
+          'Throttle network packets temporarily on UDP 5090.'
+        ],
+        explanation: 'Our AI model detected a 3x surge in UDP networking volume at smart-meters-ingestion. This correlates precisely with the 120% rise in database writing routines (grid-database-0). KubePulse correlated this network wave with rising core CPU usage across the IoT namespace.'
+      };
+    } else if (currentMode === 'PVC_STORAGE_STRESS') {
+      correlation = {
+        detected: true,
+        confidence: 98,
+        title: 'PVC Block Storage Thrashing Causing Cascading Failures',
+        severity: 'CRITICAL',
+        primaryCulprit: 'grid-database-0',
+        implicatedMetrics: ['PVC Latency', 'Pod Restarts', 'Disk Operations'],
+        causalityChain: 'PostgreSQL heavy page flushing -> Shared host NVMe controller saturation (Latency > 35ms) -> pump-controller database connection timed out -> pump-controller health check failed -> K3s scheduler restarts pod',
+        remediationSteps: [
+          'Migrate grid-database-0 to high-speed dedicated SSD storage classes.',
+          'Introduce Redis caching layer to offload persistent telemetry disk reads.',
+          'Increase HTTP healthcheck probe timeout parameter (timeoutSeconds: 8) in pump-controller spec.'
+        ],
+        explanation: 'ALERT: Severe PVC storage bottleneck! The persistent volume claim attached to grid-database-0 reached 38.4ms block write latency. Correlation analysis shows that pump-controller restarts began exactly 4 seconds after PVC storage latency exceeded the 15ms threshold, indicating a downstream dependency failure, rather than a bug in pump-controller.'
+      };
+    } else if (currentMode === 'MEMORY_LEAK') {
+      correlation = {
+        detected: true,
+        confidence: 99,
+        title: 'Fast Memory Leak Leading to Pod OOMKilled Restarts',
+        severity: 'HIGH',
+        primaryCulprit: 'grid-analytics-worker',
+        implicatedMetrics: ['Memory Utilization', 'OOMKilled Crashes', 'Page Cache Allocation'],
+        causalityChain: 'ML load forecasting worker cache leak -> Container RSS memory hits 512MB limit -> Linux kernel OOM killer triggers -> K3s schedules pod restart',
+        remediationSteps: [
+          'Fix leak inside telemetry-forecaster package in python app code.',
+          'Temporarily adjust container memory limit from 512Mi to 1Gi.',
+          'Force garbage collector cycle every 100 iterations inside forecasting worker.'
+        ],
+        explanation: 'KubePulse detected a linear, non-stabilizing memory consumption rate of +25MB/tick in grid-analytics-worker, with absolutely no change in CPU workload or network ingress volume. This is a classic signature of a memory leak, resulting in K3s node eviction under OutOfMemory status.'
+      };
+    } else if (currentMode === 'MULTI_SERVICE_DEPENDENCY') {
+      correlation = {
+        detected: true,
+        confidence: 91,
+        title: 'Cryptographic Thread Saturation on Auth Service',
+        severity: 'HIGH',
+        primaryCulprit: 'auth-service',
+        implicatedMetrics: ['CPU Core Saturation', 'API Gateway Wait Time'],
+        causalityChain: 'Multi-device user token validation surge -> auth-service CPU threads maxed out -> campus-api-gateway request buffers full -> Client timeouts',
+        remediationSteps: [
+          'Horizontally scale auth-service to distribute CPU-bound crypto hashing load.',
+          'Implement OAuth token caching at the campus-api-gateway layer (Redis/Memcached).',
+          'Configure connection-limiting policies on external gateways to buffer spikes.'
+        ],
+        explanation: 'The AI correlation maps a CPU core peak of 95% on auth-service as the direct antecedent to high request delays in campus-api-gateway. The bottleneck is the high computational weight of OAuth cryptographic token validations on the edge gateway CPU.'
+      };
+    }
+
+    setAiCorrelation(correlation);
+
+    // Mock logs
+    const mockLogs = [
+      { timestamp: new Date(), level: 'INFO', message: `[system] Running in browser sandbox demo mode.` },
+      { timestamp: new Date(Date.now() - 3000), level: currentMode === 'PVC_STORAGE_STRESS' ? 'CRITICAL' : 'INFO', message: currentMode === 'PVC_STORAGE_STRESS' ? '[pump-controller] 🚨 Failed writing pressure log. Timeout.' : '[pump-controller] State synced at 4.2 bar' },
+      { timestamp: new Date(Date.now() - 5000), level: currentMode === 'BURSTY_WORKLOAD' ? 'WARNING' : 'INFO', message: currentMode === 'BURSTY_WORKLOAD' ? '[smart-meters-ingestion] ⚠️ High packet wave. Ingesting 2500 pkg/sec' : '[smart-meters-ingestion] Processing 450 meters/sec' },
+      { timestamp: new Date(Date.now() - 8000), level: 'INFO', message: '[campus-api-gateway] Gateway routing verified.' }
+    ];
+    setLogs(mockLogs);
+  };
+
   // Poll cluster data when console view is active
   useEffect(() => {
     if (view !== 'console') return;
+
+    let fallbackTimer;
 
     const fetchData = async () => {
       try {
@@ -47,6 +275,7 @@ export default function App() {
         const stats = await resStats.json();
         setClusterData(stats.clusterState);
         setSimulationMode(stats.simulationMode);
+        setIsUsingClientFallback(false);
 
         // Fetch AI correlation findings
         const resAi = await fetch(`${BACKEND_URL}/cluster/ai-correlation`);
@@ -58,14 +287,16 @@ export default function App() {
         const logEntries = await resLogs.json();
         setLogs(logEntries);
       } catch (err) {
-        console.error("Failed to connect to simulation backend. Ensure server is running on port 5000.", err);
+        // Backend offline (e.g. Vercel static deployment)
+        setIsUsingClientFallback(true);
+        runClientSideSimulationTick(simulationMode);
       }
     };
 
     fetchData();
     const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
-  }, [view]);
+  }, [view, simulationMode, activeDeployment]);
 
   // Scroll terminal logs to bottom
   useEffect(() => {
@@ -74,8 +305,14 @@ export default function App() {
     }
   }, [logs]);
 
-  // Trigger Anomaly on Backend
+  // Trigger Anomaly on Backend or locally
   const triggerSimulation = async (mode) => {
+    setSimulationMode(mode);
+    if (isUsingClientFallback) {
+      runClientSideSimulationTick(mode);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const res = await fetch(`${BACKEND_URL}/cluster/trigger`, {
@@ -85,14 +322,15 @@ export default function App() {
       });
       const data = await res.json();
       if (data.success) {
-        setSimulationMode(mode);
         // Instant re-fetch logs
         const resLogs = await fetch(`${BACKEND_URL}/cluster/logs`);
         const logEntries = await resLogs.json();
         setLogs(logEntries);
       }
     } catch (err) {
-      alert("Failed to contact backend simulator server. Please run node backend/server.js");
+      // Backend disconnected, fallback handles it
+      setIsUsingClientFallback(true);
+      runClientSideSimulationTick(mode);
     } finally {
       setIsLoading(false);
     }
@@ -249,7 +487,7 @@ export default function App() {
 
               {/* Row 2: PVC Storage Thrashing (Visual Left / Text Right) */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4rem', alignItems: 'center', marginBottom: '5rem' }}>
-                <div className="glass-card" style={{ padding: '2rem', background: '#F8FAFC', order: window.innerWidth < 768 ? 2 : 0 }}>
+                <div className="glass-card" style={{ padding: '2rem', background: '#F8FAFC' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>PVC Volume (NVMe controller)</span>
                     <span className="badge badge-danger">38.4ms latency</span>
@@ -394,6 +632,13 @@ export default function App() {
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
                   Inject operational stress patterns directly into the cluster and observe the real-time AI response.
                 </p>
+                
+                {isUsingClientFallback && (
+                  <div style={{ display: 'flex', gap: '0.5rem', background: '#F0FDF4', border: '1px solid #DCFCE7', borderRadius: '8px', padding: '0.6rem', fontSize: '0.7rem', color: '#15803D', marginBottom: '0.75rem' }}>
+                    <Sparkles size={14} style={{ color: 'var(--success)', marginTop: '0.1rem', flexShrink: 0 }} />
+                    <span><strong>Active:</strong> Static Sandbox Mode (No local server required!)</span>
+                  </div>
+                )}
                 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   <button 
@@ -705,7 +950,6 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', gap: '1rem' }}>
                       <RefreshCw className="animate-spin-slow" size={32} />
                       <p>Connecting to Edge Kubernetes cluster simulation...</p>
-                      <p style={{ fontSize: '0.75rem' }}>Make sure to start the server: <code>node backend/server.js</code></p>
                     </div>
                   )}
                 </div>
